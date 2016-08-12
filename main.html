@@ -40,6 +40,17 @@ limitations under the License.
       <li class="active"><a href="#" onclick="toggleUi('reads', this)">Browser</a></li>
       <li><a href="#" data-toggle="modal" data-target="#about">About</a></li>
     </ul>
+
+    {% if logout_url %}
+    <ul class="nav navbar-nav navbar-right">
+      <li class="dropdown">
+        <a href="#" class="dropdown-toggle" data-toggle="dropdown">{{ username }} <b class="caret"></b></a>
+        <ul class="dropdown-menu">
+          <li><a href="{{ logout_url }}">Sign out</a></li>
+        </ul>
+      </li>
+    </ul>
+    {% endif %}
   </div>
 </nav>
 
@@ -55,9 +66,14 @@ limitations under the License.
         <p class="lead">GABrowse is a sample application designed to demonstrate the capabilities of the
         <a href="http://ga4gh.org/#/api">GA4GH API</a>.</p>
 
-        <p>Currently, you can view data from Google and Ensembl.</p>
+        <p>Currently, you can view data from:</p>
+        <ul>
+        {% for backend, data in backends.iteritems() %}
+          <li>{{ data.name }}</li>
+        {% endfor %}
+        </ul>
 
-        <p>
+        <p>To browse genomic data:</p>
           <ul>
             <li>Use the "Add data" button on the left to select a Read group set or Call set.</li>
             <li>Once loaded, choose a chromosome and zoom or drag the main graph to

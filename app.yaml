@@ -39,3 +39,11 @@ libraries:
   version: 2.6
 - name: webapp2
   version: 2.5.2
+
+env_variables:
+  # Configure which GA4GH backends to include
+  INCLUDE_BACKEND_ENSEMBL: True
+  INCLUDE_BACKEND_GOOGLE: True
+
+  # Configure whether to support authenticated access to Google Genomics data
+  REQUIRE_USER_AUTHENTICATION: False

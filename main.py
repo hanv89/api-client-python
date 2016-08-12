@@ -49,6 +49,23 @@ IS_APP_ENGINE_SERVER = \
   os.getenv('SERVER_SOFTWARE', '').startswith('Google App Engine/')
 IS_APP_ENGINE = IS_APP_ENGINE_DEVELOPMENT or IS_APP_ENGINE_SERVER
 
+INCLUDE_BACKEND_ENSEMBL = \
+  os.getenv('INCLUDE_BACKEND_ENSEMBL', '') == 'True'
+
+INCLUDE_BACKEND_GOOGLE = \
+  os.getenv('INCLUDE_BACKEND_GOOGLE', '') == 'True'
+
+REQUIRE_USER_AUTHENTICATION = \
+  os.getenv('REQUIRE_USER_AUTHENTICATION', '') == 'True'
+
+# Sanity check settings
+if REQUIRE_USER_AUTHENTICATION:
+  if INCLUDE_BACKEND_ENSEMBL:
+    raise EnvironmentError('User authentication not supported for Ensembl backend')
+
+if not INCLUDE_BACKEND_ENSEMBL and not INCLUDE_BACKEND_GOOGLE:
+  raise EnvironmentError('No backend service enabled')
+
 if IS_APP_ENGINE:
   from google.appengine.ext import vendor
 
@@ -62,12 +79,12 @@ try:
 except:
   import httplib2
 
-# Set constants for which GA4GH backends to include
-INCLUDE_BACKEND_ENSEMBL = True
-INCLUDE_BACKEND_GOOGLE = True
-
 if INCLUDE_BACKEND_GOOGLE:
   from oauth2client.client import GoogleCredentials
+
+  if REQUIRE_USER_AUTHENTICATION:
+    from oauth2client.contrib.appengine import OAuth2DecoratorFromClientSecrets
+    from google.appengine.api import users
 
 
 socket.setdefaulttimeout(60)
@@ -77,7 +94,6 @@ JINJA_ENVIRONMENT = jinja2.Environment(
     autoescape=True,
     extensions=['jinja2.ext.autoescape'])
 
-
 # Supported data types
 SET_TYPE_CALLSET = 'CALLSET'
 SET_TYPE_READSET = 'READSET'
@@ -85,35 +101,82 @@ SET_TYPE_READSET = 'READSET'
 # But that call is not in the GA4GH API yet
 SUPPORTED_BACKENDS = {}
 
+def get_default_http():
+  """Return a simple http object for outbound requests. Used for outbound
+  requests to Ensembl."""
+
+  return httplib2.Http(timeout=60)
+
+def noop_decorator(func):
+  """When REQUIRE_USER_AUTHENTICATION is False, the OAuth "decorator" object
+  will be None. This function can be used to replace the decorator functions
+  with a no-op."""
+
+  return func
+
+
 if INCLUDE_BACKEND_ENSEMBL:
   SUPPORTED_BACKENDS['Ensembl'] = {
       'name': 'Ensembl',
       'ga4gh_api_version': '0.6.0',
-      'http': httplib2.Http(timeout=60),
+      'http': get_default_http,
       'url': 'http://rest.ensembl.org/ga4gh/%s?%s',
       'datasets': {'1000 Genomes phase3': '6e340c4d1e333c7a676b1710d2e3953c'},
       'set_types' : [ SET_TYPE_CALLSET ],
   }
 
 if INCLUDE_BACKEND_GOOGLE:
+  SCOPES = 'https://www.googleapis.com/auth/genomics'
 
-  def init_google_http():
-    # For requests to Google Genomics, pick up the default credentials from
-    # the environment (see https://developers.google.com/identity/protocols/application-default-credentials).
+  # For requests to Google Genomics, we either force the user to authenticate
+  # or pick up the default credentials from the environment, dependening
+  # on how the application is configured (REQUIRE_USER_AUTHENTICATION).
+  #
+  # If users are required to authenticate, then all access to data is
+  # with the web users' credentials.
+  #
+  # Otherwise, access is provided by the server itself. If running on a local
+  # workstation, this will typically mean picking up the credentials of the
+  # user who launched the web server. If running on App Engine, this will
+  # mean using the App Engine service account associated with the Cloud
+  # project.  See https://developers.google.com/identity/protocols/application-default-credentials.
 
+  # User-authentication code leverages the OAuth2Decorator.
+  # See https://developers.google.com/api-client-library/python/guide/google_app_engine
+  decorator = None
+
+  # Service-based authentication needs a single http object with the service
+  # credentials attached.
+  google_default_http = None
+
+  if REQUIRE_USER_AUTHENTICATION:
+    decorator = OAuth2DecoratorFromClientSecrets(
+      os.path.join(os.path.dirname(__file__), 'client_secrets.json'),
+      SCOPES)
+
+    oauth_required = decorator.oauth_required
+  else:
     credentials = GoogleCredentials.get_application_default()
-    credentials = credentials.create_scoped(
-        'https://www.googleapis.com/auth/genomics')
+    credentials = credentials.create_scoped(SCOPES)
 
-    http = httplib2.Http()
-    http = credentials.authorize(http)
+    google_default_http = credentials.authorize(httplib2.Http())
+
+    oauth_required = noop_decorator
+
+  def get_google_http():
+    if REQUIRE_USER_AUTHENTICATION:
+      global decorator
+      http = decorator.http()
+
+    else:
+      http = google_default_http
 
     return http
 
   SUPPORTED_BACKENDS['GOOGLE'] = {
       'name': 'Google',
       'ga4gh_api_version': '0.5.1',
-      'http': init_google_http(),
+      'http': get_google_http,
       'url': 'https://genomics.googleapis.com/v1/%s?%s',
       'supportsPartialResponse': True,
       'datasets': {'1000 Genomes': '10473108253681171589',
@@ -161,7 +224,7 @@ class BaseRequestHandler(webapp2.RequestHandler):
     return SUPPORTED_BACKENDS[self.get_backend()]['url']
 
   def get_http(self):
-    return SUPPORTED_BACKENDS[self.get_backend()]['http']
+    return SUPPORTED_BACKENDS[self.get_backend()]['http']()
 
   def get_ga4gh_api_version(self):
     return SUPPORTED_BACKENDS[self.get_backend()]['ga4gh_api_version']
@@ -314,6 +377,7 @@ class SetSearchHandler(BaseRequestHandler):
 
     self.response.write(json.dumps(call_set))
 
+  @oauth_required
   def get(self):
     set_type = self.request.get('setType')
     set_id = self.request.get('setId')
@@ -336,6 +400,7 @@ class SetSearchHandler(BaseRequestHandler):
 
 class ReadSearchHandler(BaseRequestHandler):
 
+  @oauth_required
   def get(self):
     body = {
         'readGroupSetIds': self.request.get('setIds').split(','),
@@ -370,6 +435,7 @@ class ReadSearchHandler(BaseRequestHandler):
 
 class VariantSearchHandler(BaseRequestHandler):
 
+  @oauth_required
   def get(self):
     ga4gh_api_version = self.get_ga4gh_api_version()
 
@@ -490,11 +556,21 @@ class AlleleSearchHandler(BaseSnpediaHandler):
 
 class MainHandler(webapp2.RequestHandler):
 
+  @oauth_required
   def get(self):
+
     template = JINJA_ENVIRONMENT.get_template('main.html')
-    self.response.write(template.render({
-        'backends': SUPPORTED_BACKENDS,
-    }))
+    template_data = {
+      'backends': SUPPORTED_BACKENDS,
+    }
+  
+    if decorator and decorator.has_credentials():
+      template_data.update({
+        'username': users.User().nickname(),
+        'logout_url': users.create_logout_url('/'),
+      })
+
+    self.response.write(template.render(template_data))
 
 web_app = webapp2.WSGIApplication(
     [
@@ -506,3 +582,6 @@ web_app = webapp2.WSGIApplication(
         ('/api/alleles', AlleleSearchHandler),
     ],
     debug=True)
+
+if REQUIRE_USER_AUTHENTICATION:
+  web_app.router.add((decorator.callback_path, decorator.callback_handler()))

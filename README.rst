@@ -185,6 +185,60 @@ Install the required dependencies:
 
   python localserver.py
 
+Requiring user authentication
+-----------------------------
+
+This example application by default supports only public datasets.
+
+With a client secrets file and a small application configuration change,
+access to private Google Genomics datasets can be enabled *when deployed
+to App Engine*.
+
++--------------------------------------------------------------------+
+| Running this example application under the localserver.py does not |
+| support requiring user authentication.                             |
++--------------------------------------------------------------------+
+
++--------------------------------------------------------------------+
+| Running this example application under the App Engine Development  |
+| server *simulates* user login, and so data access uses the         |
+| credentials of the user who started the Development server.        |
++--------------------------------------------------------------------+
+
+## (1) Create an OAuth client ID
+
+Follow the
+[Setting up OAuth 2.0](https://support.google.com/cloud/answer/6158849)
+instructions.
+
+On the "Create client ID" page:
+* Set *Application Type* to *Web application*
+* Add an entry to the *Authorized redirect URIs* for your App Engine URL,
+such as `http://MY-PROJECT-ID.appspot.com/oauth2callback`.
+
+When your client ID is created, download the `client_secrets.json` file
+and copy it to the root directory of this application.
+
+For more information on writing App Engine applications to support
+authentication, see:
+
+https://developers.google.com/api-client-library/python/guide/google_app_engine
+
+## (2) Update app.yaml
+
+Edit the `app.yaml` file to turn off support for Ensembl and to require
+user (Google) authentication.
+
+.. code-block:: yaml
+
+  env_variables:
+    # Configure which GA4GH backends to include
+    INCLUDE_BACKEND_ENSEMBL: False
+    INCLUDE_BACKEND_GOOGLE: True
+
+    # Configure whether to support authenticated access to Google Genomics data
+    REQUIRE_USER_AUTHENTICATION: True
+
 Troubleshooting
 ---------------
   
@@ -272,3 +326,4 @@ Awesome possible features include:
 * Better searching of Snpedia (or another provider - EBI?)
 * Other enhancement ideas are very welcome
 * (for smaller/additional tasks see the GitHub issues)
+
