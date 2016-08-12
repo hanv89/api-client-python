@@ -2,6 +2,7 @@ api-client-python
 =================
 
 .. _Google Genomics Api: https://cloud.google.com/genomics
+.. _Setting up OAuth 2.0: https://support.google.com/cloud/answer/6158849
 
 .. contents::
 
@@ -205,18 +206,23 @@ to App Engine*.
 | credentials of the user who started the Development server.        |
 +--------------------------------------------------------------------+
 
-## (1) Create an OAuth client ID
+1. Create an OAuth client ID
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Follow the
-[Setting up OAuth 2.0](https://support.google.com/cloud/answer/6158849)
-instructions.
+Follow the `Setting up OAuth 2.0`_ instructions. On the "Create client ID" page:
 
-On the "Create client ID" page:
-* Set *Application Type* to *Web application*
-* Add an entry to the *Authorized redirect URIs* for your App Engine URL,
-such as `http://MY-PROJECT-ID.appspot.com/oauth2callback`.
+* Set **Application Type** to ``Web application``
+* Add an entry to the **Authorized redirect URIs** for your App Engine URL, such as:
 
-When your client ID is created, download the `client_secrets.json` file
+   ``http://MY-PROJECT-ID.appspot.com/oauth2callback``
+
+* Add an entry to the **Authorized redirect URIs** (only while testing locally with the App Engine Development Server):
+
+    ``http://localhost:8080/oauth2callback``
+
+* Save the new OAuth client ID
+
+When your client ID is created, download the ``client_secrets.json`` file
 and copy it to the root directory of this application.
 
 For more information on writing App Engine applications to support
@@ -224,7 +230,8 @@ authentication, see:
 
 https://developers.google.com/api-client-library/python/guide/google_app_engine
 
-## (2) Update app.yaml
+2. Update app.yaml
+^^^^^^^^^^^^^^^^^^
 
 Edit the `app.yaml` file to turn off support for Ensembl and to require
 user (Google) authentication.
