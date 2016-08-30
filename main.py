@@ -53,7 +53,7 @@ if IS_APP_ENGINE:
   from google.appengine.ext import vendor
 
   # Add any libraries installed in the "lib" folder.
-  vendor.add('lib')
+  # vendor.add('lib')
 
 # Imports http2 after libary path is set up
 try:
@@ -387,7 +387,7 @@ class VariantSearchHandler(BaseRequestHandler):
       # but the Ensembl implementation does.
       # The variantSetId isn't stored in the client (though it could be)
       # and hence it is not passed in here.
-      
+
       # For now, just look up the variantSetId for each callset
       # (and make sure they all belong to the same one)
       variant_set_ids = set()
