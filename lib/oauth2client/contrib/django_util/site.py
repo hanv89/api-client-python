@@ -1,4 +1,4 @@
-# Copyright 2014 Google Inc. All rights reserved.
+# Copyright 2015 Google Inc.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,30 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-application: hagabrowse
-version: 1
-runtime: python27
-api_version: 1
-threadsafe: yes
+"""Contains Django URL patterns used for OAuth2 flow."""
 
-handlers:
+from django.conf import urls
 
-# Static files
-- url: /static
-  static_dir: static
+from oauth2client.contrib.django_util import views
 
-# Make robots.txt accessible at the root URL.
-- url: /robots.txt
-  static_files: static/robots.txt
-  upload: static/robots.txt
+urlpatterns = [
+    urls.url(r'oauth2callback/', views.oauth2_callback, name="callback"),
+    urls.url(r'oauth2authorize/', views.oauth2_authorize, name="authorize")
+]
 
-# All other urls get handled by main.py
-- url: .*
-  script: main.web_app
-
-# Third party libraries that are included in the App Engine SDK
-libraries:
-- name: jinja2
-  version: 2.6
-- name: webapp2
-  version: 2.5.2
+urls = (urlpatterns, "google_oauth", "google_oauth")

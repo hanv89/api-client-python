@@ -1,4 +1,4 @@
-# Copyright 2014 Google Inc. All rights reserved.
+# Copyright 2015 Google Inc.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,30 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-application: hagabrowse
-version: 1
-runtime: python27
-api_version: 1
-threadsafe: yes
+"""Signals for Google OAuth2 Helper.
 
-handlers:
+This module contains signals for Google OAuth2 Helper. Currently it only
+contains one, which fires when an OAuth2 authorization flow has completed.
+"""
 
-# Static files
-- url: /static
-  static_dir: static
+import django.dispatch
 
-# Make robots.txt accessible at the root URL.
-- url: /robots.txt
-  static_files: static/robots.txt
-  upload: static/robots.txt
-
-# All other urls get handled by main.py
-- url: .*
-  script: main.web_app
-
-# Third party libraries that are included in the App Engine SDK
-libraries:
-- name: jinja2
-  version: 2.6
-- name: webapp2
-  version: 2.5.2
+"""Signal that fires when  OAuth2 Flow has completed.
+It passes the Django request object and the OAuth2 credentials object to the
+ receiver.
+"""
+oauth2_authorized = django.dispatch.Signal(
+    providing_args=["request", "credentials"])
