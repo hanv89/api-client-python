@@ -24,18 +24,26 @@ import os
 import pickle
 import threading
 
+import httplib2
+import webapp2 as webapp
+
 from google.appengine.api import app_identity
 from google.appengine.api import memcache
 from google.appengine.api import users
 from google.appengine.ext import db
 from google.appengine.ext.webapp.util import login_required
-import httplib2
-import webapp2 as webapp
 
-import oauth2client
-from oauth2client import client
+from oauth2client import GOOGLE_AUTH_URI
+from oauth2client import GOOGLE_REVOKE_URI
+from oauth2client import GOOGLE_TOKEN_URI
 from oauth2client import clientsecrets
 from oauth2client import util
+from oauth2client.client import AccessTokenRefreshError
+from oauth2client.client import AssertionCredentials
+from oauth2client.client import Credentials
+from oauth2client.client import Flow
+from oauth2client.client import OAuth2WebServerFlow
+from oauth2client.client import Storage
 from oauth2client.contrib import xsrfutil
 
 # This is a temporary fix for a Google internal issue.
@@ -81,6 +89,14 @@ def _safe_html(s):
     return cgi.escape(s, quote=1).replace("'", '&#39;')
 
 
+class InvalidClientSecretsError(Exception):
+    """The client_secrets.json file is malformed or missing required fields."""
+
+
+class InvalidXsrfTokenError(Exception):
+    """The XSRF token is invalid or expired."""
+
+
 class SiteXsrfSecretKey(db.Model):
     """Storage for the sites XSRF secret key.
 
@@ -118,7 +134,7 @@ def xsrf_secret_key():
     return str(secret)
 
 
-class AppAssertionCredentials(client.AssertionCredentials):
+class AppAssertionCredentials(AssertionCredentials):
     """Credentials object for App Engine Assertion Grants
 
     This object will allow an App Engine application to identify itself to
@@ -177,7 +193,7 @@ class AppAssertionCredentials(client.AssertionCredentials):
             (token, _) = app_identity.get_access_token(
                 scopes, service_account_id=self.service_account_id)
         except app_identity.Error as e:
-            raise client.AccessTokenRefreshError(str(e))
+            raise AccessTokenRefreshError(str(e))
         self.access_token = token
 
     @property
@@ -228,7 +244,7 @@ class FlowProperty(db.Property):
     """
 
     # Tell what the user type is.
-    data_type = client.Flow
+    data_type = Flow
 
     # For writing to datastore.
     def get_value_for_datastore(self, model_instance):
@@ -243,10 +259,10 @@ class FlowProperty(db.Property):
         return pickle.loads(value)
 
     def validate(self, value):
-        if value is not None and not isinstance(value, client.Flow):
-            raise db.BadValueError(
-                'Property {0} must be convertible '
-                'to a FlowThreeLegged instance ({1})'.format(self.name, value))
+        if value is not None and not isinstance(value, Flow):
+            raise db.BadValueError('Property %s must be convertible '
+                                   'to a FlowThreeLegged instance (%s)' %
+                                   (self.name, value))
         return super(FlowProperty, self).validate(value)
 
     def empty(self, value):
@@ -261,7 +277,7 @@ class CredentialsProperty(db.Property):
     """
 
     # Tell what the user type is.
-    data_type = client.Credentials
+    data_type = Credentials
 
     # For writing to datastore.
     def get_value_for_datastore(self, model_instance):
@@ -282,7 +298,7 @@ class CredentialsProperty(db.Property):
         if len(value) == 0:
             return None
         try:
-            credentials = client.Credentials.new_from_json(value)
+            credentials = Credentials.new_from_json(value)
         except ValueError:
             credentials = None
         return credentials
@@ -290,14 +306,14 @@ class CredentialsProperty(db.Property):
     def validate(self, value):
         value = super(CredentialsProperty, self).validate(value)
         logger.info("validate: Got type " + str(type(value)))
-        if value is not None and not isinstance(value, client.Credentials):
-            raise db.BadValueError(
-                'Property {0} must be convertible '
-                'to a Credentials instance ({1})'.format(self.name, value))
+        if value is not None and not isinstance(value, Credentials):
+            raise db.BadValueError('Property %s must be convertible '
+                                   'to a Credentials instance (%s)' %
+                                   (self.name, value))
         return value
 
 
-class StorageByKeyName(client.Storage):
+class StorageByKeyName(Storage):
     """Store and retrieve a credential to and from the App Engine datastore.
 
     This Storage helper presumes the Credentials have been stored as a
@@ -349,8 +365,8 @@ class StorageByKeyName(client.Storage):
             elif issubclass(self._model, db.Model):
                 return False
 
-        raise TypeError(
-            'Model class not an NDB or DB model: {0}.'.format(self._model))
+        raise TypeError('Model class not an NDB or DB model: %s.' %
+                        (self._model,))
 
     def _get_entity(self):
         """Retrieve entity from datastore.
@@ -389,7 +405,7 @@ class StorageByKeyName(client.Storage):
         if self._cache:
             json = self._cache.get(self._key_name)
             if json:
-                credentials = client.Credentials.new_from_json(json)
+                credentials = Credentials.new_from_json(json)
         if credentials is None:
             entity = self._get_entity()
             if entity is not None:
@@ -460,15 +476,18 @@ def _parse_state_value(state, user):
         state: string, The value of the state parameter.
         user: google.appengine.api.users.User, The current user.
 
+    Raises:
+        InvalidXsrfTokenError: if the XSRF token is invalid.
+
     Returns:
-        The redirect URI, or None if XSRF token is not valid.
+        The redirect URI.
     """
     uri, token = state.rsplit(':', 1)
-    if xsrfutil.validate_token(xsrf_secret_key(), token, user.user_id(),
-                               action_id=uri):
-        return uri
-    else:
-        return None
+    if not xsrfutil.validate_token(xsrf_secret_key(), token, user.user_id(),
+                                   action_id=uri):
+        raise InvalidXsrfTokenError()
+
+    return uri
 
 
 class OAuth2Decorator(object):
@@ -525,9 +544,9 @@ class OAuth2Decorator(object):
 
     @util.positional(4)
     def __init__(self, client_id, client_secret, scope,
-                 auth_uri=oauth2client.GOOGLE_AUTH_URI,
-                 token_uri=oauth2client.GOOGLE_TOKEN_URI,
-                 revoke_uri=oauth2client.GOOGLE_REVOKE_URI,
+                 auth_uri=GOOGLE_AUTH_URI,
+                 token_uri=GOOGLE_TOKEN_URI,
+                 revoke_uri=GOOGLE_REVOKE_URI,
                  user_agent=None,
                  message=None,
                  callback_path='/oauth2callback',
@@ -646,7 +665,7 @@ class OAuth2Decorator(object):
                 return request_handler.redirect(self.authorize_url())
             try:
                 resp = method(request_handler, *args, **kwargs)
-            except client.AccessTokenRefreshError:
+            except AccessTokenRefreshError:
                 return request_handler.redirect(self.authorize_url())
             finally:
                 self.credentials = None
@@ -667,7 +686,7 @@ class OAuth2Decorator(object):
         if self.flow is None:
             redirect_uri = request_handler.request.relative_url(
                 self._callback_path)  # Usually /oauth2callback
-            self.flow = client.OAuth2WebServerFlow(
+            self.flow = OAuth2WebServerFlow(
                 self._client_id, self._client_secret, self._scope,
                 redirect_uri=redirect_uri, user_agent=self._user_agent,
                 auth_uri=self._auth_uri, token_uri=self._token_uri,
@@ -783,8 +802,8 @@ class OAuth2Decorator(object):
                 if error:
                     errormsg = self.request.get('error_description', error)
                     self.response.out.write(
-                        'The authorization request failed: {0}'.format(
-                            _safe_html(errormsg)))
+                        'The authorization request failed: %s' %
+                        _safe_html(errormsg))
                 else:
                     user = users.get_current_user()
                     decorator._create_flow(self)
@@ -796,10 +815,6 @@ class OAuth2Decorator(object):
                         user=user).put(credentials)
                     redirect_uri = _parse_state_value(
                         str(self.request.get('state')), user)
-                    if redirect_uri is None:
-                        self.response.out.write(
-                            'The authorization request failed')
-                        return
 
                     if (decorator._token_response_param and
                             credentials.token_response):
@@ -870,7 +885,7 @@ class OAuth2DecoratorFromClientSecrets(OAuth2Decorator):
                                                           cache=cache)
         if client_type not in (clientsecrets.TYPE_WEB,
                                clientsecrets.TYPE_INSTALLED):
-            raise clientsecrets.InvalidClientSecretsError(
+            raise InvalidClientSecretsError(
                 "OAuth2Decorator doesn't support this OAuth 2.0 flow.")
 
         constructor_kwargs = dict(kwargs)

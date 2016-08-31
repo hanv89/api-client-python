@@ -13,13 +13,17 @@
 # limitations under the License.
 
 import errno
-import fcntl
 import time
 
-from oauth2client.contrib import locked_file
+import fcntl
+
+from oauth2client.contrib.locked_file import _Opener
+from oauth2client.contrib.locked_file import AlreadyLockedException
+from oauth2client.contrib.locked_file import logger
+from oauth2client.contrib.locked_file import validate_file
 
 
-class _FcntlOpener(locked_file._Opener):
+class _FcntlOpener(_Opener):
     """Open, lock, and unlock a file using fcntl.lockf."""
 
     def open_and_lock(self, timeout, delay):
@@ -36,11 +40,11 @@ class _FcntlOpener(locked_file._Opener):
                                               link.
         """
         if self._locked:
-            raise locked_file.AlreadyLockedException(
-                'File {0} is already locked'.format(self._filename))
+            raise AlreadyLockedException('File %s is already locked' %
+                                         self._filename)
         start_time = time.time()
 
-        locked_file.validate_file(self._filename)
+        validate_file(self._filename)
         try:
             self._fh = open(self._filename, self._mode)
         except IOError as e:
@@ -64,8 +68,8 @@ class _FcntlOpener(locked_file._Opener):
                     raise
                 # We could not acquire the lock. Try again.
                 if (time.time() - start_time) >= timeout:
-                    locked_file.logger.warn('Could not lock %s in %s seconds',
-                                            self._filename, timeout)
+                    logger.warn('Could not lock %s in %s seconds',
+                                self._filename, timeout)
                     if self._fh:
                         self._fh.close()
                     self._fh = open(self._filename, self._fallback_mode)

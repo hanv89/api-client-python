@@ -50,18 +50,15 @@ import logging
 import os
 import threading
 
-from oauth2client import client
+from oauth2client.client import Credentials
+from oauth2client.client import Storage as BaseStorage
 from oauth2client import util
-from oauth2client.contrib import locked_file
+from oauth2client.contrib.locked_file import LockedFile
+
 
 __author__ = 'jbeda@google.com (Joe Beda)'
 
 logger = logging.getLogger(__name__)
-
-logger.warning(
-    'The oauth2client.contrib.multistore_file module has been deprecated and '
-    'will be removed in the next release of oauth2client. Please migrate to '
-    'multiprocess_file_storage.')
 
 # A dict from 'filename'->_MultiStore instances
 _multistores = {}
@@ -212,7 +209,7 @@ class _MultiStore(object):
 
         This will create the file if necessary.
         """
-        self._file = locked_file.LockedFile(filename, 'r+', 'r')
+        self._file = LockedFile(filename, 'r+', 'r')
         self._thread_lock = threading.Lock()
         self._read_only = False
         self._warn_on_readonly = warn_on_readonly
@@ -228,7 +225,7 @@ class _MultiStore(object):
         # If this is None, then the store hasn't been read yet.
         self._data = None
 
-    class _Storage(client.Storage):
+    class _Storage(BaseStorage):
         """A Storage object that can read/write a single credential."""
 
         def __init__(self, multistore, key):
@@ -394,8 +391,8 @@ class _MultiStore(object):
                         'corrupt or an old version. Overwriting.')
         if version > 1:
             raise NewerCredentialStoreError(
-                'Credential file has file_version of {0}. '
-                'Only file_version of 1 is supported.'.format(version))
+                'Credential file has file_version of %d. '
+                'Only file_version of 1 is supported.' % version)
 
         credentials = []
         try:
@@ -425,7 +422,7 @@ class _MultiStore(object):
         raw_key = cred_entry['key']
         key = _dict_to_tuple_key(raw_key)
         credential = None
-        credential = client.Credentials.new_from_json(
+        credential = Credentials.new_from_json(
             json.dumps(cred_entry['credential']))
         return (key, credential)
 
