@@ -76,13 +76,16 @@ at runtime. Documentation can be found
 `here <https://cloud.google.com/appengine/docs/python/tools/using-libraries-python-27#adding_libraries>`_.
 
 For this application execute the following in the root of your local copy:
+[Original]
 
 .. code:: shell
 
   mkdir lib
   pip install -t lib --upgrade oauth2client
 
+[Edit]
 Use oauth2client version 2.2.0 instead of 3.0.0 because of a bug in 3.0.0 prevent running on cloud (pwd missing)
+
 .. code:: shell
 
   pip install --install-option="--prefix=" -t lib oauth2client==2.2.0
@@ -117,16 +120,17 @@ Running on the App Engine Production Server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To deploy this application to App Engine, execute the following command:
+[Original]
 
 .. code:: shell
 
   appcfg.py -A YOUR_PROJECT_ID -V v1 update .
 
-OR
+[Edit]
 
 .. code:: shell
 
-  gcloud app deploy --project YOUR_PROJECT_ID -v v7 --stop-previous-version .
+  gcloud app deploy --project YOUR_PROJECT_ID -v VERSION_NAME --stop-previous-version .
 
 Replace ``YOUR_PROJECT_ID`` with the project of your Google Cloud Project.
 
