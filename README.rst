@@ -8,7 +8,7 @@ api-client-python
 Introduction
 ------------
 
-This Python client demonstrates a simple web-based genome browser that fetches data from the 
+This Python client demonstrates a simple web-based genome browser that fetches data from the
 `Google Genomics API`_, the NCBI Genomics API or the Local Readstore through a web
 interface, and displays a pileup of reads with support for zooming and basic navigation and search.
 
@@ -32,7 +32,7 @@ Cloud Platform project.
 
 1. Follow instructions `here <https://support.google.com/cloud/answer/6251787>`_ to create a new project
 
-2. Follow instructions `here <https://support.google.com/cloud/answer/6158841>`_ to enable the ``Genomics`` API 
+2. Follow instructions `here <https://support.google.com/cloud/answer/6158841>`_ to enable the ``Genomics`` API
 
 3. Follow instructions `here <https://support.google.com/cloud/answer/6158840>`_ to find your Cloud "project ID"
 
@@ -65,7 +65,7 @@ To run the application on the development server, you will:
 1. Download the App Engine SDK
 ''''''''''''''''''''''''''''''
 
-Read about and follow the instructions for downloading and installing the 
+Read about and follow the instructions for downloading and installing the
 `Google App Engine SDK for Python <https://cloud.google.com/appengine/downloads#Google_App_Engine_SDK_for_Python>`_
 
 2. Install Google's OAuth client libraries
@@ -82,6 +82,11 @@ For this application execute the following in the root of your local copy:
   mkdir lib
   pip install -t lib --upgrade oauth2client
 
+Use oauth2client version 2.2.0 instead of 3.0.0 because of a bug in 3.0.0 prevent running on cloud (pwd missing)
+.. code:: shell
+
+  pip install --install-option="--prefix=" -t lib oauth2client==2.2.0
+
 This will install the `oauth2client <https://oauth2client.readthedocs.io/en/latest/>`_ and all of its dependencies
 (including `httplib2 <http://bitworking.org/projects/httplib2/doc/html/>`_).
 
@@ -89,13 +94,13 @@ This will install the `oauth2client <https://oauth2client.readthedocs.io/en/late
 ''''''''''''''''''''''''''''''''
 
 On Mac OS X you can set up and run the application through the
-GoogleAppEngineLauncher UI. 
+GoogleAppEngineLauncher UI.
 To use the command line or to run on Linux:
 
 .. code:: shell
 
   dev_appserver.py .
-  
+
 To run on Windows:
 
 .. code:: shell
@@ -117,6 +122,12 @@ To deploy this application to App Engine, execute the following command:
 
   appcfg.py -A YOUR_PROJECT_ID -V v1 update .
 
+OR
+
+.. code:: shell
+
+  gcloud app deploy --project YOUR_PROJECT_ID -v v7 --stop-previous-version .
+
 Replace ``YOUR_PROJECT_ID`` with the project of your Google Cloud Project.
 
 Once running, visit http://YOUR_PROJECT_ID.appspot.com in your browser
@@ -125,7 +136,7 @@ to browse data from the API.
 Running with paste and webapp2
 ------------------------------
 
-You can also run the server locally using 
+You can also run the server locally using
 the Python `paste <https://en.wikipedia.org/wiki/Python_Paste>`_
 web server framework.
 
@@ -140,7 +151,7 @@ been tested in this environment.
 1. Install pip
 ^^^^^^^^^^^^^^
 If you do not already have `pip <https://en.wikipedia.org/wiki/Pip_(package_manager)>`_
-installed, you can find instructions 
+installed, you can find instructions
 `here <http://www.pip-installer.org/en/latest/installing.html>`_.
 
 2. Install virtualenv
@@ -187,21 +198,21 @@ Install the required dependencies:
 
 Troubleshooting
 ---------------
-  
-* The ``google.appengine.tools.devappserver2.wsgi_server.BindError: Unable to bind`` message 
-  means that one of the default App Engine ports is unavailable. The default ports are 8080 and 8000. 
+
+* The ``google.appengine.tools.devappserver2.wsgi_server.BindError: Unable to bind`` message
+  means that one of the default App Engine ports is unavailable. The default ports are 8080 and 8000.
   You can try different ports with these flags::
 
 .. code:: shell
 
   python dev_appserver.py --port 12080 --admin_port=12000 .
-  
+
 Your server will then be available at ``localhost:12080``.
 
 * Problem with a non-Chrome browser?
 
 Please  `file an issue <https://github.com/googlegenomics/api-client-python/issues/new>`_.
-jQuery and d3 get us a lot of browser portability for free - 
+jQuery and d3 get us a lot of browser portability for free -
 but testing on all configurations is tricky, so just let us knowif there are issues!
 
 Code layout
